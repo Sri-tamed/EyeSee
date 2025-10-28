@@ -1,0 +1,5 @@
+{
+  "name": "EyeSee ",
+  "description": "An AI-powered companion web application to simulate a non-contact eye pressure measurement device for early glaucoma detection. It provides real-time data visualization, trend analysis, and AI-driven health insights using the Gemini API.",
+  "requestFramePermissions": []
+}
