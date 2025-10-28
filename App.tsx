@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import type { IOPReading, Screen, ConnectionStatus, ConnectionType } from './types';
 import { initialReadings } from './constants';
 
@@ -9,13 +9,26 @@ import BottomNav from './components/BottomNav';
 import { EyeIcon } from './components/icons/EyeIcon';
 import ConnectionManager from './components/ConnectionManager';
 import IrisBackground from './components/IrisBackground';
+import Onboarding from './components/Onboarding';
 
 const App: React.FC = () => {
   const [readings, setReadings] = useState<IOPReading[]>(initialReadings);
   const [activeScreen, setActiveScreen] = useState<Screen>('dashboard');
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({ isConnected: true, type: 'WiFi' });
   const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
+  useEffect(() => {
+    const hasSeenOnboarding = localStorage.getItem('hasSeenOnboarding');
+    if (!hasSeenOnboarding) {
+      setShowOnboarding(true);
+    }
+  }, []);
+
+  const handleOnboardingComplete = () => {
+    localStorage.setItem('hasSeenOnboarding', 'true');
+    setShowOnboarding(false);
+  };
 
   const addReading = useCallback((newValue: number) => {
     const newReading: IOPReading = {
@@ -76,6 +89,7 @@ const App: React.FC = () => {
           </footer>
         </div>
       </div>
+      {showOnboarding && <Onboarding onComplete={handleOnboardingComplete} />}
       {isConnectionModalOpen && (
         <ConnectionManager
             isOpen={isConnectionModalOpen}
