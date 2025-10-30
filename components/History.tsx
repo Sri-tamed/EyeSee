@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import type { IOPReading } from '../types';
 import { NORMAL_IOP_RANGE, NEON_BLUE } from '../constants';
 import { getAIInsight } from '../services/geminiService';
+import { generatePDFReport } from '../utils/pdfGenerator';
 import { SparklesIcon } from './icons/SparklesIcon';
+import { DownloadIcon } from './icons/DownloadIcon';
+
 
 interface HistoryProps {
   readings: IOPReading[];
@@ -23,13 +26,28 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 const History: React.FC<HistoryProps> = ({ readings }) => {
   const [insight, setInsight] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoadingInsight, setIsLoadingInsight] = useState<boolean>(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState<boolean>(false);
+  const chartRef = useRef<HTMLDivElement>(null);
 
   const handleGetInsight = async () => {
-    setIsLoading(true);
+    setIsLoadingInsight(true);
     const result = await getAIInsight(readings);
     setInsight(result);
-    setIsLoading(false);
+    setIsLoadingInsight(false);
+  };
+
+  const handleGenerateReport = async () => {
+    if (!chartRef.current) return;
+    setIsGeneratingPDF(true);
+    try {
+      await generatePDFReport(chartRef.current, readings, insight);
+    } catch (error) {
+      console.error("Failed to generate PDF:", error);
+      alert("Could not generate PDF report. Please try again.");
+    } finally {
+      setIsGeneratingPDF(false);
+    }
   };
   
   const chartData = readings.map(r => ({
@@ -39,7 +57,7 @@ const History: React.FC<HistoryProps> = ({ readings }) => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="bg-slate-800/50 p-4 rounded-xl backdrop-blur-sm border border-slate-700">
+      <div ref={chartRef} className="bg-slate-800/50 p-4 rounded-xl backdrop-blur-sm border border-slate-700">
         <h2 className="text-xl font-bold text-cyan-300 mb-4">Readings History</h2>
         <div style={{ width: '100%', height: 250 }}>
           <ResponsiveContainer>
@@ -67,25 +85,38 @@ const History: React.FC<HistoryProps> = ({ readings }) => {
 
       <div className="bg-slate-800/50 p-4 rounded-xl backdrop-blur-sm border border-slate-700">
         <h2 className="text-xl font-bold text-cyan-300 mb-2">AI-Driven Insight</h2>
-        {insight && !isLoading && (
+        {insight && !isLoadingInsight && (
            <p className="text-slate-300 italic">"{insight}"</p>
         )}
-        {isLoading && (
+        {isLoadingInsight && (
             <div className="flex items-center space-x-2 text-slate-400">
                 <div className="w-4 h-4 border-2 border-t-cyan-400 border-slate-600 rounded-full animate-spin"></div>
                 <span>Generating analysis...</span>
             </div>
         )}
-        {!insight && !isLoading && (
+        {!insight && !isLoadingInsight && (
             <p className="text-slate-400">Press the button to analyze your pressure trends.</p>
         )}
         <button
           onClick={handleGetInsight}
-          disabled={isLoading}
+          disabled={isLoadingInsight || isGeneratingPDF}
           className="mt-4 w-full flex items-center justify-center px-4 py-2 bg-cyan-500 text-slate-900 rounded-full font-semibold hover:bg-cyan-400 transition-colors disabled:bg-slate-600 disabled:cursor-not-allowed shadow-lg shadow-cyan-500/30"
         >
           <SparklesIcon className="w-5 h-5 mr-2" />
-          {isLoading ? 'Analyzing...' : 'Get AI Insight'}
+          {isLoadingInsight ? 'Analyzing...' : 'Get AI Insight'}
+        </button>
+      </div>
+
+       <div className="bg-slate-800/50 p-4 rounded-xl backdrop-blur-sm border border-slate-700">
+        <h2 className="text-xl font-bold text-cyan-300 mb-2">Shareable Report</h2>
+        <p className="text-slate-400">Generate a PDF report of your history and insights to share with your doctor.</p>
+        <button
+          onClick={handleGenerateReport}
+          disabled={isGeneratingPDF || isLoadingInsight || readings.length === 0}
+          className="mt-4 w-full flex items-center justify-center px-4 py-2 bg-slate-700/80 text-cyan-300 rounded-full font-semibold hover:bg-slate-600 transition-colors disabled:bg-slate-600 disabled:text-slate-400 disabled:cursor-not-allowed"
+        >
+          <DownloadIcon className="w-5 h-5 mr-2" />
+          {isGeneratingPDF ? 'Generating...' : 'Generate Report'}
         </button>
       </div>
     </div>
