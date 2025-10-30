@@ -17,6 +17,7 @@ const EyeScan: React.FC<EyeScanProps> = ({ onSave }) => {
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<number | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const stopCamera = useCallback(() => {
@@ -69,13 +70,29 @@ const EyeScan: React.FC<EyeScanProps> = ({ onSave }) => {
 
 
   const startCamera = async () => {
+    setCameraError(null);
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
       setStream(mediaStream);
       setScanState(ScanState.CameraActive);
-    } catch (err) {
-      console.error("Camera access denied:", err);
-      alert("Camera access is required. Please allow camera access in your browser settings and refresh the page.");
+    } catch (err: any) {
+      console.error("Camera access error:", err.name, err.message);
+      let message = "An unexpected error occurred while accessing the camera. Please check your browser settings and try again.";
+      
+      if (err.name === 'NotAllowedError') {
+        message = "Camera access was denied or dismissed. To use the scanner, please grant permission when prompted. If you previously denied it, you may need to reset the permission in your browser's site settings.";
+      } else if (err.name === 'NotFoundError') {
+        message = "No camera was found on your device. Please ensure a camera is connected and enabled.";
+      } else if (err.name === 'NotReadableError') {
+        message = "There was a hardware error with your camera. It might be in use by another application.";
+      } else if (err.name === 'AbortError') {
+        message = "The camera request was aborted. Please try again.";
+      } else if (err.name === 'SecurityError') {
+         message = "Camera access is not permitted on this page for security reasons. Ensure the page is loaded over HTTPS.";
+      }
+
+      setCameraError(message);
+      setScanState(ScanState.Idle);
     }
   };
 
@@ -96,6 +113,7 @@ const EyeScan: React.FC<EyeScanProps> = ({ onSave }) => {
     setScanState(ScanState.Idle);
     setProgress(0);
     setResult(null);
+    setCameraError(null);
   }
 
   const renderContent = () => {
@@ -192,15 +210,24 @@ const EyeScan: React.FC<EyeScanProps> = ({ onSave }) => {
       default:
         return (
           <div className="flex flex-col items-center justify-center text-center">
-            <h2 className="text-2xl font-bold text-slate-200">Ready to Scan</h2>
-            <p className="text-slate-400 mt-2 max-w-xs">
-              The scanner will use your camera to simulate a measurement.
-            </p>
+            {cameraError ? (
+              <div className="mb-4 bg-red-900/50 border border-red-500/50 text-red-300 p-4 rounded-lg max-w-xs animate-fade-in">
+                <h3 className="font-bold mb-2">Camera Error</h3>
+                <p className="text-sm">{cameraError}</p>
+              </div>
+            ) : (
+              <>
+                <h2 className="text-2xl font-bold text-slate-200">Ready to Scan</h2>
+                <p className="text-slate-400 mt-2 max-w-xs">
+                  The scanner will use your camera to simulate a measurement.
+                </p>
+              </>
+            )}
             <button
               onClick={startCamera}
               className="mt-8 px-8 py-4 bg-cyan-500 text-slate-900 rounded-full font-bold text-lg hover:bg-cyan-400 transition-all duration-300 transform hover:scale-105 shadow-2xl shadow-cyan-500/40"
             >
-              Activate Scanner
+              {cameraError ? 'Try Again' : 'Activate Scanner'}
             </button>
           </div>
         );
