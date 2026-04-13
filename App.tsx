@@ -1,4 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { IOPReading, Screen, ConnectionStatus, ConnectionType } from './types';
 import { initialReadings } from './constants';
 
@@ -14,19 +18,25 @@ import Onboarding from './components/Onboarding';
 const App: React.FC = () => {
   const [readings, setReadings] = useState<IOPReading[]>(initialReadings);
   const [activeScreen, setActiveScreen] = useState<Screen>('dashboard');
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({ isConnected: true, type: 'WiFi' });
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
+    isConnected: true,
+    type: 'WiFi',
+  });
   const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
-    const hasSeenOnboarding = localStorage.getItem('hasSeenOnboarding');
-    if (!hasSeenOnboarding) {
-      setShowOnboarding(true);
-    }
+    const checkOnboarding = async () => {
+      const hasSeenOnboarding = await AsyncStorage.getItem('hasSeenOnboarding');
+      if (!hasSeenOnboarding) {
+        setShowOnboarding(true);
+      }
+    };
+    checkOnboarding();
   }, []);
 
-  const handleOnboardingComplete = () => {
-    localStorage.setItem('hasSeenOnboarding', 'true');
+  const handleOnboardingComplete = async () => {
+    await AsyncStorage.setItem('hasSeenOnboarding', 'true');
     setShowOnboarding(false);
   };
 
@@ -35,7 +45,7 @@ const App: React.FC = () => {
       date: new Date(),
       value: newValue,
     };
-    setReadings(prevReadings => [...prevReadings, newReading]);
+    setReadings((prevReadings) => [...prevReadings, newReading]);
     setActiveScreen('dashboard');
   }, []);
 
@@ -57,50 +67,74 @@ const App: React.FC = () => {
         return <History readings={readings} />;
       case 'dashboard':
       default:
-        return <Dashboard 
-          readings={readings} 
-          connectionStatus={connectionStatus}
-          onManageConnection={() => setIsConnectionModalOpen(true)}
-        />;
+        return (
+          <Dashboard
+            readings={readings}
+            connectionStatus={connectionStatus}
+            onManageConnection={() => setIsConnectionModalOpen(true)}
+          />
+        );
     }
   };
 
   return (
-    <div className="relative min-h-screen bg-slate-900">
-      {/* Animated Background Layer */}
-      <IrisBackground />
-      
-      {/* Dark Overlay */}
-      <div className="absolute inset-0 bg-slate-900/70 z-0" />
-      
-      <div className="relative z-10 text-white flex flex-col items-center min-h-screen">
-        <div className="w-full max-w-md mx-auto flex flex-col h-screen">
-          <header className="flex items-center justify-center p-4 space-x-3 text-2xl font-bold text-cyan-300 font-poppins sticky top-0 bg-slate-900/80 backdrop-blur-sm z-20">
-            <EyeIcon className="w-8 h-8"/>
-            <h1>EyeSee</h1>
-          </header>
-
-          <main className="flex-grow p-4 overflow-y-auto">
-            {renderScreen()}
-          </main>
-
-          <footer className="sticky bottom-0 left-0 right-0 w-full max-w-md mx-auto bg-slate-900/80 backdrop-blur-sm z-20">
-            <BottomNav activeScreen={activeScreen} setActiveScreen={setActiveScreen} />
-          </footer>
-        </div>
-      </div>
-      {showOnboarding && <Onboarding onComplete={handleOnboardingComplete} />}
-      {isConnectionModalOpen && (
-        <ConnectionManager
+    <SafeAreaProvider>
+      <View style={styles.container}>
+        <StatusBar style="light" />
+        <IrisBackground />
+        <View style={styles.overlay} />
+        <SafeAreaView style={styles.content} edges={['top']}>
+          <View style={styles.header}>
+            <EyeIcon width={32} height={32} color="#67e8f9" />
+            <Text style={styles.headerTitle}>EyeSee</Text>
+          </View>
+          <View style={styles.main}>{renderScreen()}</View>
+          <BottomNav activeScreen={activeScreen} setActiveScreen={setActiveScreen} />
+        </SafeAreaView>
+        {showOnboarding && <Onboarding onComplete={handleOnboardingComplete} />}
+        {isConnectionModalOpen && (
+          <ConnectionManager
             isOpen={isConnectionModalOpen}
             onClose={() => setIsConnectionModalOpen(false)}
             onConnect={handleConnect}
             onDisconnect={handleDisconnect}
             currentStatus={connectionStatus}
-        />
-      )}
-    </div>
+          />
+        )}
+      </View>
+    </SafeAreaProvider>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0f172a',
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+  },
+  content: {
+    flex: 1,
+    zIndex: 10,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 12,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#67e8f9',
+  },
+  main: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+});
 
 export default App;

@@ -1,100 +1,66 @@
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-import html2canvas from 'html2canvas';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import type { IOPReading } from '../types';
 
-// FIX: The module augmentation `declare module 'jspdf'` was causing an error:
-// "Invalid module name in augmentation, module 'jspdf' cannot be found."
-// Replacing it with an interface and a type assertion below is a robust way to add the types for the autoTable plugin.
-interface jsPDFWithAutoTable extends jsPDF {
-  autoTable: (options: any) => jsPDF;
-}
-
 export const generatePDFReport = async (
-  chartElement: HTMLElement,
   readings: IOPReading[],
   insight: string
 ): Promise<void> => {
-  const doc = new jsPDF() as jsPDFWithAutoTable;
   const latestReading = readings.length > 0 ? readings[readings.length - 1] : null;
 
-  // --- Header ---
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(22);
-  doc.setTextColor('#0891b2'); // cyan-700
-  doc.text('EyeSee - IOP Report', 14, 22);
+  const tableRows = readings
+    .map(
+      (r) =>
+        `<tr>
+          <td>${r.date.toLocaleDateString()}</td>
+          <td>${r.date.toLocaleTimeString()}</td>
+          <td>${r.value.toFixed(1)}</td>
+        </tr>`
+    )
+    .join('');
 
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor('#475569'); // slate-600
-  doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 28);
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { font-family: Helvetica, Arial, sans-serif; padding: 30px; color: #0f172a; }
+          h1 { color: #0891b2; font-size: 22px; margin-bottom: 4px; }
+          h2 { color: #0f172a; font-size: 14px; margin-top: 24px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+          .subtitle { font-size: 10px; color: #475569; }
+          .summary { font-size: 12px; line-height: 1.6; }
+          .insight { font-style: italic; font-size: 12px; margin: 12px 0; padding: 10px; background: #f0f9ff; border-radius: 8px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
+          th { background: #0e2940; color: #e0f2fe; padding: 8px; text-align: center; }
+          td { border: 1px solid #e2e8f0; padding: 8px; text-align: center; }
+        </style>
+      </head>
+      <body>
+        <h1>EyeSee - IOP Report</h1>
+        <p class="subtitle">Generated on: ${new Date().toLocaleDateString()}</p>
 
-  // --- Summary ---
-  doc.setFontSize(12);
-  doc.setTextColor('#0f172a'); // slate-900
-  doc.text('Summary', 14, 45);
-  doc.setDrawColor('#e2e8f0'); // slate-200
-  doc.line(14, 47, 196, 47);
-  
-  doc.setFontSize(10);
-  const summaryText = `This report contains ${readings.length} readings.
-The latest reading was ${latestReading?.value.toFixed(1) ?? 'N/A'} mmHg on ${latestReading?.date.toLocaleDateString() ?? 'N/A'}.`;
-  doc.text(summaryText, 14, 54);
+        <h2>Summary</h2>
+        <p class="summary">
+          This report contains ${readings.length} readings.<br/>
+          The latest reading was ${latestReading?.value.toFixed(1) ?? 'N/A'} mmHg on ${latestReading?.date.toLocaleDateString() ?? 'N/A'}.
+        </p>
 
-  // --- AI Insight ---
-  if (insight) {
-    doc.setFontSize(12);
-    doc.setTextColor('#0f172a');
-    doc.text('AI-Driven Insight', 14, 75);
-    doc.line(14, 77, 196, 77);
+        ${
+          insight
+            ? `<h2>AI-Driven Insight</h2><div class="insight">"${insight}"</div>`
+            : ''
+        }
 
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(10);
-    const insightLines = doc.splitTextToSize(`"${insight}"`, 182);
-    doc.text(insightLines, 14, 84);
-  }
+        <h2>Readings History</h2>
+        <table>
+          <tr><th>Date</th><th>Time</th><th>IOP (mmHg)</th></tr>
+          ${tableRows}
+        </table>
+      </body>
+    </html>
+  `;
 
-  // --- Chart ---
-  const canvas = await html2canvas(chartElement, {
-    backgroundColor: '#1e293b', // slate-800
-    scale: 2,
-  });
-  const imgData = canvas.toDataURL('image/png');
-  const chartYPosition = insight ? 100 : 75;
-
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor('#0f172a');
-  doc.text('Readings History Chart', 14, chartYPosition);
-  doc.line(14, chartYPosition + 2, 196, chartYPosition + 2);
-  
-  const imgProps = doc.getImageProperties(imgData);
-  const pdfWidth = 182;
-  const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-  doc.addImage(imgData, 'PNG', 14, chartYPosition + 5, pdfWidth, pdfHeight);
-
-  // --- Data Table ---
-  const tableData = readings.map(r => [
-    r.date.toLocaleDateString(),
-    r.date.toLocaleTimeString(),
-    r.value.toFixed(1),
-  ]);
-
-  doc.autoTable({
-    startY: chartYPosition + pdfHeight + 15,
-    head: [['Date', 'Time', 'IOP (mmHg)']],
-    body: tableData,
-    theme: 'grid',
-    headStyles: {
-      fillColor: '#0e2940', // Custom dark blue from Iris
-      textColor: '#e0f2fe', // light cyan/sky
-    },
-    styles: {
-      font: 'helvetica',
-      fontSize: 10,
-    },
-  });
-
-  // --- Save ---
-  doc.save('EyeSee_IOP_Report.pdf');
+  const { uri } = await Print.printToFileAsync({ html });
+  await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
 };

@@ -1,34 +1,23 @@
-import React, { useState, useRef } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { BarChart } from 'react-native-chart-kit';
 import type { IOPReading } from '../types';
-import { NORMAL_IOP_RANGE, NEON_BLUE } from '../constants';
+import { NEON_BLUE } from '../constants';
 import { getAIInsight } from '../services/geminiService';
 import { generatePDFReport } from '../utils/pdfGenerator';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { DownloadIcon } from './icons/DownloadIcon';
 
-
 interface HistoryProps {
   readings: IOPReading[];
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-slate-700/80 p-2 border border-slate-600 rounded-md shadow-lg">
-        <p className="label text-sm text-cyan-300">{`${new Date(label).toLocaleDateString()}`}</p>
-        <p className="intro text-lg font-bold">{`IOP: ${payload[0].value} mmHg`}</p>
-      </div>
-    );
-  }
-  return null;
-};
+const screenWidth = Dimensions.get('window').width;
 
 const History: React.FC<HistoryProps> = ({ readings }) => {
   const [insight, setInsight] = useState<string>('');
   const [isLoadingInsight, setIsLoadingInsight] = useState<boolean>(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState<boolean>(false);
-  const chartRef = useRef<HTMLDivElement>(null);
 
   const handleGetInsight = async () => {
     setIsLoadingInsight(true);
@@ -38,89 +27,196 @@ const History: React.FC<HistoryProps> = ({ readings }) => {
   };
 
   const handleGenerateReport = async () => {
-    if (!chartRef.current) return;
     setIsGeneratingPDF(true);
     try {
-      await generatePDFReport(chartRef.current, readings, insight);
+      await generatePDFReport(readings, insight);
     } catch (error) {
-      console.error("Failed to generate PDF:", error);
-      alert("Could not generate PDF report. Please try again.");
+      console.error('Failed to generate PDF:', error);
+      Alert.alert('Error', 'Could not generate PDF report. Please try again.');
     } finally {
       setIsGeneratingPDF(false);
     }
   };
-  
-  const chartData = readings.map(r => ({
-    name: r.date.getTime(),
-    IOP: r.value,
-  }));
+
+  const chartLabels = readings.map((r) =>
+    r.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  );
+  const chartValues = readings.map((r) => r.value);
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div ref={chartRef} className="bg-slate-800/50 p-4 rounded-xl backdrop-blur-sm border border-slate-700">
-        <h2 className="text-xl font-bold text-cyan-300 mb-4">Readings History</h2>
-        <div style={{ width: '100%', height: 250 }}>
-          <ResponsiveContainer>
-            <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis 
-                dataKey="name" 
-                tickFormatter={(unixTime) => new Date(unixTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} 
-                stroke="#64748b"
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis domain={['dataMin - 2', 'dataMax + 2']} stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-              <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0, 191, 255, 0.1)' }} />
-              <Bar dataKey="IOP">
-                 {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.IOP > NORMAL_IOP_RANGE.max || entry.IOP < NORMAL_IOP_RANGE.min ? '#FBBF24' : NEON_BLUE} />
-                  ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      {/* Chart Card */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Readings History</Text>
+        {chartValues.length > 0 ? (
+          <BarChart
+            data={{
+              labels: chartLabels,
+              datasets: [{ data: chartValues }],
+            }}
+            width={screenWidth - 64}
+            height={250}
+            chartConfig={{
+              backgroundColor: 'transparent',
+              backgroundGradientFrom: '#1e293b',
+              backgroundGradientTo: '#1e293b',
+              decimalPlaces: 0,
+              color: (opacity = 1) => `rgba(0, 191, 255, ${opacity})`,
+              labelColor: (opacity = 1) => `rgba(100, 116, 139, ${opacity})`,
+              barPercentage: 0.6,
+              propsForBackgroundLines: {
+                strokeDasharray: '3 3',
+                stroke: '#334155',
+              },
+            }}
+            style={styles.chart}
+            withInnerLines
+            showValuesOnTopOfBars
+            fromZero={false}
+            yAxisLabel=""
+            yAxisSuffix=""
+          />
+        ) : (
+          <Text style={styles.noDataText}>No readings yet</Text>
+        )}
+      </View>
 
-      <div className="bg-slate-800/50 p-4 rounded-xl backdrop-blur-sm border border-slate-700">
-        <h2 className="text-xl font-bold text-cyan-300 mb-2">AI-Driven Insight</h2>
-        {insight && !isLoadingInsight && (
-           <p className="text-slate-300 italic">"{insight}"</p>
-        )}
-        {isLoadingInsight && (
-            <div className="flex items-center space-x-2 text-slate-400">
-                <div className="w-4 h-4 border-2 border-t-cyan-400 border-slate-600 rounded-full animate-spin"></div>
-                <span>Generating analysis...</span>
-            </div>
-        )}
-        {!insight && !isLoadingInsight && (
-            <p className="text-slate-400">Press the button to analyze your pressure trends.</p>
-        )}
-        <button
-          onClick={handleGetInsight}
+      {/* AI Insight Card */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>AI-Driven Insight</Text>
+        {insight && !isLoadingInsight ? (
+          <Text style={styles.insightText}>"{insight}"</Text>
+        ) : null}
+        {isLoadingInsight ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator size="small" color="#22d3ee" />
+            <Text style={styles.loadingText}>Generating analysis...</Text>
+          </View>
+        ) : null}
+        {!insight && !isLoadingInsight ? (
+          <Text style={styles.placeholderText}>Press the button to analyze your pressure trends.</Text>
+        ) : null}
+        <TouchableOpacity
+          style={[styles.insightButton, (isLoadingInsight || isGeneratingPDF) && styles.buttonDisabled]}
+          onPress={handleGetInsight}
           disabled={isLoadingInsight || isGeneratingPDF}
-          className="mt-4 w-full flex items-center justify-center px-4 py-2 bg-cyan-500 text-slate-900 rounded-full font-semibold hover:bg-cyan-400 transition-colors disabled:bg-slate-600 disabled:cursor-not-allowed shadow-lg shadow-cyan-500/30"
+          activeOpacity={0.7}
         >
-          <SparklesIcon className="w-5 h-5 mr-2" />
-          {isLoadingInsight ? 'Analyzing...' : 'Get AI Insight'}
-        </button>
-      </div>
+          <SparklesIcon width={20} height={20} color={isLoadingInsight || isGeneratingPDF ? '#94a3b8' : '#0f172a'} />
+          <Text style={[styles.insightButtonText, (isLoadingInsight || isGeneratingPDF) && styles.buttonTextDisabled]}>
+            {isLoadingInsight ? 'Analyzing...' : 'Get AI Insight'}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-       <div className="bg-slate-800/50 p-4 rounded-xl backdrop-blur-sm border border-slate-700">
-        <h2 className="text-xl font-bold text-cyan-300 mb-2">Shareable Report</h2>
-        <p className="text-slate-400">Generate a PDF report of your history and insights to share with your doctor.</p>
-        <button
-          onClick={handleGenerateReport}
+      {/* Report Card */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Shareable Report</Text>
+        <Text style={styles.placeholderText}>
+          Generate a PDF report of your history and insights to share with your doctor.
+        </Text>
+        <TouchableOpacity
+          style={[styles.reportButton, (isGeneratingPDF || isLoadingInsight || readings.length === 0) && styles.buttonDisabled]}
+          onPress={handleGenerateReport}
           disabled={isGeneratingPDF || isLoadingInsight || readings.length === 0}
-          className="mt-4 w-full flex items-center justify-center px-4 py-2 bg-slate-700/80 text-cyan-300 rounded-full font-semibold hover:bg-slate-600 transition-colors disabled:bg-slate-600 disabled:text-slate-400 disabled:cursor-not-allowed"
+          activeOpacity={0.7}
         >
-          <DownloadIcon className="w-5 h-5 mr-2" />
-          {isGeneratingPDF ? 'Generating...' : 'Generate Report'}
-        </button>
-      </div>
-    </div>
+          <DownloadIcon
+            width={20}
+            height={20}
+            color={isGeneratingPDF || isLoadingInsight || readings.length === 0 ? '#94a3b8' : '#67e8f9'}
+          />
+          <Text
+            style={[
+              styles.reportButtonText,
+              (isGeneratingPDF || isLoadingInsight || readings.length === 0) && styles.buttonTextDisabled,
+            ]}
+          >
+            {isGeneratingPDF ? 'Generating...' : 'Generate Report'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 };
+
+const styles = StyleSheet.create({
+  scrollContent: {
+    paddingBottom: 16,
+    gap: 24,
+  },
+  card: {
+    backgroundColor: 'rgba(30, 41, 59, 0.5)',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  cardTitle: {
+    fontWeight: 'bold',
+    fontSize: 20,
+    color: '#67e8f9',
+    marginBottom: 8,
+  },
+  chart: {
+    borderRadius: 16,
+    marginTop: 8,
+  },
+  noDataText: {
+    color: '#64748b',
+    textAlign: 'center',
+    paddingVertical: 40,
+  },
+  insightText: {
+    color: '#cbd5e1',
+    fontStyle: 'italic',
+    lineHeight: 22,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    color: '#94a3b8',
+  },
+  placeholderText: {
+    color: '#94a3b8',
+  },
+  insightButton: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    backgroundColor: '#06b6d4',
+    borderRadius: 999,
+    gap: 8,
+  },
+  insightButtonText: {
+    color: '#0f172a',
+    fontWeight: '600',
+  },
+  reportButton: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    backgroundColor: 'rgba(51, 65, 85, 0.8)',
+    borderRadius: 999,
+    gap: 8,
+  },
+  reportButtonText: {
+    color: '#67e8f9',
+    fontWeight: '600',
+  },
+  buttonDisabled: {
+    backgroundColor: '#475569',
+  },
+  buttonTextDisabled: {
+    color: '#94a3b8',
+  },
+});
 
 export default History;

@@ -1,4 +1,5 @@
 import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import type { Screen } from '../types';
 import { DashboardIcon } from './icons/DashboardIcon';
 import { ScanIcon } from './icons/ScanIcon';
@@ -14,48 +15,77 @@ const NavItem: React.FC<{
   screen: Screen;
   icon: React.ReactNode;
   isActive: boolean;
-  onClick: (screen: Screen) => void;
-}> = ({ label, screen, icon, isActive, onClick }) => {
+  onPress: (screen: Screen) => void;
+}> = ({ label, screen, icon, isActive, onPress }) => {
   return (
-    <button
-      onClick={() => onClick(screen)}
-      className={`flex flex-col items-center justify-center w-full pt-2 pb-1 transition-colors duration-200 ${
-        isActive ? 'text-cyan-400' : 'text-slate-400 hover:text-cyan-300'
-      }`}
-    >
+    <TouchableOpacity style={styles.navItem} onPress={() => onPress(screen)} activeOpacity={0.7}>
       {icon}
-      <span className="text-xs mt-1">{label}</span>
-      {isActive && <div className="w-8 h-1 bg-cyan-400 rounded-full mt-1"></div>}
-    </button>
+      <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>{label}</Text>
+      {isActive && <View style={styles.activeIndicator} />}
+    </TouchableOpacity>
   );
 };
 
 const BottomNav: React.FC<BottomNavProps> = ({ activeScreen, setActiveScreen }) => {
   return (
-    <nav className="flex justify-around items-start border-t border-slate-700/50">
+    <View style={styles.nav}>
       <NavItem
         label="Dashboard"
         screen="dashboard"
-        icon={<DashboardIcon className="w-6 h-6" />}
+        icon={<DashboardIcon width={24} height={24} color={activeScreen === 'dashboard' ? '#22d3ee' : '#94a3b8'} />}
         isActive={activeScreen === 'dashboard'}
-        onClick={setActiveScreen}
+        onPress={setActiveScreen}
       />
       <NavItem
         label="Scan"
         screen="scan"
-        icon={<ScanIcon className="w-6 h-6" />}
+        icon={<ScanIcon width={24} height={24} color={activeScreen === 'scan' ? '#22d3ee' : '#94a3b8'} />}
         isActive={activeScreen === 'scan'}
-        onClick={setActiveScreen}
+        onPress={setActiveScreen}
       />
       <NavItem
         label="History"
         screen="history"
-        icon={<HistoryIcon className="w-6 h-6" />}
+        icon={<HistoryIcon width={24} height={24} color={activeScreen === 'history' ? '#22d3ee' : '#94a3b8'} />}
         isActive={activeScreen === 'history'}
-        onClick={setActiveScreen}
+        onPress={setActiveScreen}
       />
-    </nav>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  nav: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'flex-start',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(51, 65, 85, 0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+    paddingBottom: 20,
+  },
+  navItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  navLabel: {
+    fontSize: 12,
+    marginTop: 4,
+    color: '#94a3b8',
+  },
+  navLabelActive: {
+    color: '#22d3ee',
+  },
+  activeIndicator: {
+    width: 32,
+    height: 4,
+    backgroundColor: '#22d3ee',
+    borderRadius: 2,
+    marginTop: 4,
+  },
+});
 
 export default BottomNav;

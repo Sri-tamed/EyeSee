@@ -1,4 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Modal,
+  ScrollView,
+  ActivityIndicator,
+} from 'react-native';
 import type { ConnectionStatus, ConnectionType } from '../types';
 import { WifiIcon } from './icons/WifiIcon';
 import { BluetoothIcon } from './icons/BluetoothIcon';
@@ -11,6 +20,8 @@ interface ConnectionManagerProps {
   currentStatus: ConnectionStatus;
 }
 
+type Tab = 'WiFi' | 'Bluetooth';
+
 const ConnectionManager: React.FC<ConnectionManagerProps> = ({
   isOpen,
   onClose,
@@ -18,7 +29,6 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
   onDisconnect,
   currentStatus,
 }) => {
-  type Tab = 'WiFi' | 'Bluetooth';
   const [activeTab, setActiveTab] = useState<Tab>('WiFi');
   const [isScanning, setIsScanning] = useState(false);
   const [foundDevices, setFoundDevices] = useState<string[]>([]);
@@ -43,100 +53,259 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
       setIsScanning(false);
     }, 2500);
   };
-  
+
   const handleConnect = () => {
-      onConnect(activeTab);
-      setFoundDevices([]);
-  }
-
-  if (!isOpen) return null;
-
-  const TabButton: React.FC<{ tabName: Tab; icon: React.ReactNode }> = ({ tabName, icon }) => (
-    <button
-      onClick={() => {
-        setActiveTab(tabName);
-        setFoundDevices([]);
-        setIsScanning(false);
-      }}
-      className={`flex-1 flex items-center justify-center p-3 font-semibold border-b-2 transition-colors ${
-        activeTab === tabName
-          ? 'border-cyan-400 text-cyan-400'
-          : 'border-slate-700 text-slate-400 hover:text-cyan-300'
-      }`}
-    >
-      {icon}
-      <span className="ml-2">{tabName}</span>
-    </button>
-  );
+    onConnect(activeTab);
+    setFoundDevices([]);
+  };
 
   return (
-    <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in"
-      onClick={onClose}
-    >
-      <div
-        className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm m-4 text-white transform transition-all animate-slide-up"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-cyan-300">Device Connection</h2>
-                <button onClick={onClose} className="text-3xl font-light text-slate-400 hover:text-white leading-none">&times;</button>
-            </div>
-            {currentStatus.isConnected ? (
-                <div className="text-center">
-                    <p className="text-green-400">Connected via {currentStatus.type}</p>
-                    <button onClick={onDisconnect} className="mt-4 w-full px-4 py-2 bg-red-600/80 text-white rounded-full font-semibold hover:bg-red-500 transition-colors">
-                        Disconnect
-                    </button>
-                </div>
-            ) : (
-                 <p className="text-center text-slate-400">Not connected. Scan for a device below.</p>
-            )}
-        </div>
-        
-        <div className="border-t border-slate-700">
-            <div className="flex">
-                <TabButton tabName="WiFi" icon={<WifiIcon className="w-5 h-5"/>} />
-                <TabButton tabName="Bluetooth" icon={<BluetoothIcon className="w-5 h-5"/>} />
-            </div>
-        </div>
+    <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity style={styles.modal} activeOpacity={1} onPress={() => {}}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Device Connection</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Text style={styles.closeButton}>&times;</Text>
+            </TouchableOpacity>
+          </View>
 
-        <div className="p-6 h-64 flex flex-col">
-            <button
-                onClick={handleScan}
-                disabled={isScanning}
-                className="w-full px-4 py-2 bg-cyan-500 text-slate-900 rounded-full font-semibold hover:bg-cyan-400 transition-colors disabled:bg-slate-600 disabled:cursor-not-allowed shadow-lg shadow-cyan-500/30"
+          {/* Connection Status */}
+          <View style={styles.section}>
+            {currentStatus.isConnected ? (
+              <View style={styles.connectedSection}>
+                <Text style={styles.connectedText}>Connected via {currentStatus.type}</Text>
+                <TouchableOpacity style={styles.disconnectButton} onPress={onDisconnect} activeOpacity={0.7}>
+                  <Text style={styles.disconnectButtonText}>Disconnect</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <Text style={styles.disconnectedText}>Not connected. Scan for a device below.</Text>
+            )}
+          </View>
+
+          {/* Tabs */}
+          <View style={styles.tabRow}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'WiFi' && styles.tabActive]}
+              onPress={() => {
+                setActiveTab('WiFi');
+                setFoundDevices([]);
+                setIsScanning(false);
+              }}
             >
+              <WifiIcon width={20} height={20} color={activeTab === 'WiFi' ? '#22d3ee' : '#94a3b8'} />
+              <Text style={[styles.tabText, activeTab === 'WiFi' && styles.tabTextActive]}>WiFi</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'Bluetooth' && styles.tabActive]}
+              onPress={() => {
+                setActiveTab('Bluetooth');
+                setFoundDevices([]);
+                setIsScanning(false);
+              }}
+            >
+              <BluetoothIcon width={20} height={20} color={activeTab === 'Bluetooth' ? '#22d3ee' : '#94a3b8'} />
+              <Text style={[styles.tabText, activeTab === 'Bluetooth' && styles.tabTextActive]}>Bluetooth</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Scan Content */}
+          <View style={styles.scanSection}>
+            <TouchableOpacity
+              style={[styles.scanButton, isScanning && styles.buttonDisabled]}
+              onPress={handleScan}
+              disabled={isScanning}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.scanButtonText, isScanning && styles.buttonTextDisabled]}>
                 {isScanning ? 'Scanning...' : `Scan for ${activeTab} Devices`}
-            </button>
-            <div className="flex-grow mt-4 overflow-y-auto">
-                {isScanning ? (
-                    <div className="flex items-center justify-center h-full text-slate-400">
-                        <div className="w-6 h-6 border-2 border-t-cyan-400 border-slate-600 rounded-full animate-spin"></div>
-                        <span className="ml-3">Searching for devices...</span>
-                    </div>
-                ) : foundDevices.length > 0 ? (
-                    <ul className="space-y-2">
-                        {foundDevices.map(device => (
-                            <li key={device} className="flex justify-between items-center bg-slate-700/50 p-3 rounded-lg">
-                                <span className="font-medium">{device}</span>
-                                <button onClick={handleConnect} className="px-3 py-1 text-sm bg-green-500 text-white rounded-full font-semibold hover:bg-green-400">
-                                    Connect
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                ) : (
-                    <div className="flex items-center justify-center h-full text-slate-500">
-                        <p>No devices found.</p>
-                    </div>
-                )}
-            </div>
-        </div>
-      </div>
-    </div>
+              </Text>
+            </TouchableOpacity>
+
+            <ScrollView style={styles.deviceList}>
+              {isScanning ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#22d3ee" />
+                  <Text style={styles.loadingText}>Searching for devices...</Text>
+                </View>
+              ) : foundDevices.length > 0 ? (
+                foundDevices.map((device) => (
+                  <View key={device} style={styles.deviceItem}>
+                    <Text style={styles.deviceName}>{device}</Text>
+                    <TouchableOpacity style={styles.connectButton} onPress={handleConnect} activeOpacity={0.7}>
+                      <Text style={styles.connectButtonText}>Connect</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>No devices found.</Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
   );
 };
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modal: {
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 20,
+    width: '90%',
+    maxWidth: 400,
+    maxHeight: '80%',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 24,
+    paddingBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#67e8f9',
+  },
+  closeButton: {
+    fontSize: 28,
+    color: '#94a3b8',
+    lineHeight: 28,
+  },
+  section: {
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+  },
+  connectedSection: {
+    alignItems: 'center',
+  },
+  connectedText: {
+    color: '#4ade80',
+    fontSize: 16,
+  },
+  disconnectButton: {
+    marginTop: 12,
+    width: '100%',
+    paddingVertical: 10,
+    backgroundColor: 'rgba(220, 38, 38, 0.8)',
+    borderRadius: 999,
+    alignItems: 'center',
+  },
+  disconnectButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  disconnectedText: {
+    color: '#94a3b8',
+    textAlign: 'center',
+  },
+  tabRow: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#334155',
+    gap: 8,
+  },
+  tabActive: {
+    borderBottomColor: '#22d3ee',
+  },
+  tabText: {
+    color: '#94a3b8',
+    fontWeight: '600',
+  },
+  tabTextActive: {
+    color: '#22d3ee',
+  },
+  scanSection: {
+    padding: 24,
+    height: 256,
+  },
+  scanButton: {
+    width: '100%',
+    paddingVertical: 10,
+    backgroundColor: '#06b6d4',
+    borderRadius: 999,
+    alignItems: 'center',
+  },
+  scanButtonText: {
+    color: '#0f172a',
+    fontWeight: '600',
+  },
+  buttonDisabled: {
+    backgroundColor: '#475569',
+  },
+  buttonTextDisabled: {
+    color: '#94a3b8',
+  },
+  deviceList: {
+    flex: 1,
+    marginTop: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingTop: 40,
+  },
+  loadingText: {
+    color: '#94a3b8',
+  },
+  deviceItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(51, 65, 85, 0.5)',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  deviceName: {
+    color: '#ffffff',
+    fontWeight: '500',
+  },
+  connectButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#22c55e',
+    borderRadius: 999,
+  },
+  connectButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 40,
+  },
+  emptyText: {
+    color: '#64748b',
+  },
+});
 
 export default ConnectionManager;
